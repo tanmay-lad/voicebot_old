@@ -70,7 +70,7 @@ class LanguageModelProcessor:
 class TextToSpeech:
     # Set your Deepgram API Key and desired voice model
     DG_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-    MODEL_NAME = "aura-helios-en"  # Example model name, change as needed
+    MODEL_NAME = "aura-asteria-en"  # Example model name, change as needed
 
     @staticmethod
     def is_installed(lib_name: str) -> bool:
@@ -163,11 +163,11 @@ async def get_transcript(callback):
         options = LiveOptions(
             model="nova-2",
             punctuate=True,
-            language="en-US",
+            language="en-IN",
             encoding="linear16",
             channels=1,
             sample_rate=16000,
-            endpointing=300,
+            endpointing=500, #300, Time in milliseconds of silence to wait for before finalizing speech
             smart_format=True,
         )
 
@@ -197,6 +197,11 @@ class ConversationManager:
     async def main(self):
         def handle_full_sentence(full_sentence):
             self.transcription_response = full_sentence
+
+        llm_response = self.llm.process("Please introduce yourself")
+
+        tts = TextToSpeech()
+        tts.speak(llm_response)
 
         # Loop indefinitely until "goodbye" is detected
         while True:
