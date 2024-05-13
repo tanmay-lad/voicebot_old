@@ -8,7 +8,7 @@ The files in `building_blocks` are the isolated components if you'd like to insp
 
 System prompt guide:
 - Refer to individual prompt files based on use cases
-- Change filename for system_prompt_usecase.txt in QuickAgent.py file at line 40
+- Change filename for `system_prompt_usecase.txt` in `QuickAgent.py` file at 'line 40'
 
 ```
 Run command: python3 QuickAgent.py
