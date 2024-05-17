@@ -78,6 +78,7 @@ class TextToSpeech:
                         print("Connection closed")
                         break
 
+            end_time = time.time()  # Record the time before sending the request
             listen_task = asyncio.create_task(stream(listen()))
 
             async for text in text_chunker(text_iterator):
@@ -99,7 +100,8 @@ class TextToSpeech:
             await websocket.send(json.dumps(eos_message))
 
             await listen_task
-            end_time = time.time()  # Record the time before sending the request
+            
+            #end_time = time.time()  # Record the time before sending the request
             ttts = int((end_time - start_time) * 1000)  # Calculate the time for tts to complete
             print(f"TTS Completion Time (TTTS): {ttts} ms\n")
 
@@ -281,7 +283,7 @@ class ConversationManager:
 
     async def main(self):
         # system prompts
-        introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja, please introduce yourself only once."
+        introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja."
         task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
         property_details = "The Beachview hotel is a 5-star property in Mumbai and commands a regal view of the Arabian Sea and the famous Juhu beach. It is located just 30 mins from Mumbai Airport, the travel is also arranged by the concierge. Amenities include Swimming pool, Gym, Spa, Beachfront, Cafe, Business Lounge, Banquet hall, Garden, etc. Prices quoted include breakfast and access to swimming pool, gym, beachfront, garden. Other amenities to be charged as per requirements. If the user asks for prices without breakfast, you can deduct rupees 1000 from the price quoted per night. Also, inclusion of buffet wil cost rupees 1000 extra per person for each lunch and dinner. Room types along with the details is as follows = '1. Superior room = 'area 260 square feet, city view, perfect for business and leisure travellers on the go, priced at rupees 9500 per night, inventory of 150 rooms. 2. Premier room = 'area 260 square feet, ocean view, offering stunning views of the Arabian Sea, priced at rupees 10500 per night, inventory of 100 rooms. 3. Executive room = 'area 350 square feet, city view, large studio rooms, priced at rupees 12500 per night, inventory of 100 rooms. 4. Deluxe room = 'area 350 square feet, ocean view, large studio rooms offering stunning views of the Arabian Sea, priced at rupees 18000 per night, inventory of 50 rooms. 5 = 'Luxury suite = 'area 500 square feet, ocean view, consisting of a living room and a separate bedroom, priced at rupees 25000 per night, inventory of 10 rooms."
         conversation_style = "Communicate concisely and conversationally. Aim for responses in short, clear prose, ideally under 20 words. Always maintain a professional stance."
