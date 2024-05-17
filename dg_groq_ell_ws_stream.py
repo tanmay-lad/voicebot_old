@@ -64,13 +64,20 @@ class TextToSpeech:
                 "xi_api_key": self.elevenlabs_api_key,
             }))
 
+            start_time = None
+            first_byte_time = None
             async def listen():
                 """Listen to the websocket for audio data and stream it."""
+                nonlocal first_byte_time
                 while True:
                     try:
                         message = await websocket.recv()
                         data = json.loads(message)
                         if data.get("audio"):
+                            if first_byte_time is None:
+                                first_byte_time = time.time()
+                                latency = int((first_byte_time - start_time) * 1000)
+                                print(f"Time to first byte: {latency} ms")
                             yield base64.b64decode(data["audio"])
                         elif data.get('isFinal'):
                             break
@@ -78,10 +85,12 @@ class TextToSpeech:
                         print("Connection closed")
                         break
 
-            end_time = time.time()  # Record the time before sending the request
+            #end_time = time.time()  # Record the time before sending the request
             listen_task = asyncio.create_task(stream(listen()))
 
             async for text in text_chunker(text_iterator):
+                if start_time is None:
+                    start_time = time.time()
                 await websocket.send(json.dumps({"text": text, "try_trigger_generation": True}))
 
             """
@@ -102,8 +111,8 @@ class TextToSpeech:
             await listen_task
             
             #end_time = time.time()  # Record the time before sending the request
-            ttts = int((end_time - start_time) * 1000)  # Calculate the time for tts to complete
-            print(f"TTS Completion Time (TTTS): {ttts} ms\n")
+            #ttts = int((end_time - start_time) * 1000)  # Calculate the time for tts to complete
+            #print(f"TTS Completion Time (TTTS): {ttts} ms\n")
 
 class TranscriptCollector:
     def __init__(self):
