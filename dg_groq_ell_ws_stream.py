@@ -130,75 +130,6 @@ class TranscriptCollector:
 
 transcript_collector = TranscriptCollector()
 
-"""
-async def get_transcript(callback):
-    transcription_complete = asyncio.Event()  # Event to signal transcription completion
-
-    try:
-        # example of setting up a client config. logging values: WARNING, VERBOSE, DEBUG, SPAM
-        config = DeepgramClientOptions(options={"keepalive": "true"})
-        deepgram: DeepgramClient = DeepgramClient("", config)
-
-        dg_connection = deepgram.listen.asynclive.v("1")
-        print ("Listening...")
-
-        async def on_message(self, result, **kwargs):
-            sentence = result.channel.alternatives[0].transcript
-            
-            if not result.speech_final:
-                transcript_collector.add_part(sentence)
-            else:
-                # This is the final part of the current sentence
-                transcript_collector.add_part(sentence)
-                full_sentence = transcript_collector.get_full_transcript()
-                # Check if the full_sentence is not empty before printing
-                if len(full_sentence.strip()) > 0:
-                    full_sentence = full_sentence.strip()
-                    print(f"Guest: {full_sentence}")
-                    callback(full_sentence)  # Call the callback with the full_sentence
-                    transcript_collector.reset()
-                    transcription_complete.set()  # Signal to stop transcription and exit
-
-        dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
-
-        options = LiveOptions(
-            model="nova-2",
-            punctuate=True,
-            language="en-IN",
-            encoding="linear16",
-            channels=1,
-            sample_rate=16000,
-            endpointing=400, #300, Time in milliseconds of silence to wait for before finalizing speech
-            smart_format=True,
-            numerals=True,
-        )
-
-        await dg_connection.start(options)
-
-        # Open a microphone stream on the default input device
-        microphone = Microphone(dg_connection.send)
-        microphone.start()
-
-        await transcription_complete.wait()  # Wait for the transcription to complete instead of looping indefinitely
-
-        # Wait for the microphone to close
-        microphone.finish()
-
-        
-        while True:
-            if not microphone.is_active():
-                break
-            await asyncio.sleep(1)
-        
-
-        # Indicate that we've finished
-        await dg_connection.finish()
-
-    except Exception as e:
-        print(f"Could not open socket: {e}")
-        return
-"""
-
 async def llm_tts(client, query, conversation_history) -> str:
     #client = AsyncGroq(api_key = os.getenv('GROQ_API_KEY'))
 
@@ -295,7 +226,106 @@ async def llm_tts(client, query, conversation_history) -> str:
 
     return response
 
-async def STT():
+class ConversationManager:
+
+    def __init__(self, client, conversation_history, sentence_queue):
+        self.client = client
+        self.conversation_history = conversation_history
+        self.sentence_queue = sentence_queue
+
+    async def on_message(self, event, result, **kwargs):
+        #print("Received message with result:", result)
+        #print("Additional keyword arguments:", kwargs)
+        # nonlocal client, conversation_history
+        sentence = result.channel.alternatives[0].transcript
+        
+        if not result.speech_final:
+            transcript_collector.add_part(sentence)
+        else:
+            # This is the final part of the current sentence
+            transcript_collector.add_part(sentence)
+            full_sentence = transcript_collector.get_full_transcript()
+            # Check if the full_sentence is not empty before printing
+            if len(full_sentence.strip()) > 0:
+                full_sentence = full_sentence.strip()
+                print(f"Guest: {full_sentence}")
+                if "goodbye" in full_sentence.lower():
+                    raise Exception("Guest hung up")
+                await self.sentence_queue.put(full_sentence)
+                transcript_collector.reset()    
+
+    async def on_open(self, event, open, **kwargs):
+        print(f"Connection Open")
+
+    async def on_metadata(self, event, metadata, **kwargs):
+        print(f"Metadata: {metadata}")
+
+    async def on_speech_started(self, event, speech_started, **kwargs):
+        print(f"Speech Started")
+
+    async def on_utterance_end(self, event, utterance_end, **kwargs):
+        print(f"Utterance End")
+
+    async def on_close(self, event, close, **kwargs):
+        print(f"Connection Closed")
+
+    async def on_error(self, event, error, **kwargs):
+        print(f"Handled Error: {error}")
+
+    async def process_sentence_queue(self):
+        while True:
+            if not self.sentence_queue.empty():
+                user_query = await self.sentence_queue.get()
+                assistant_response = await llm_tts(self.client, user_query, self.conversation_history)
+            await asyncio.sleep(0.1)  # adjust the sleep time as needed    
+    
+    async def stt(self):
+        config = DeepgramClientOptions(options={"keepalive": "true"})
+        deepgram: DeepgramClient = DeepgramClient("", config)
+
+        dg_connection = deepgram.listen.asynclive.v("1")
+        print ("Listening...")
+
+        dg_connection.on(LiveTranscriptionEvents.Open, self.on_open)
+        dg_connection.on(LiveTranscriptionEvents.Transcript, self.on_message)
+        dg_connection.on(LiveTranscriptionEvents.Metadata, self.on_metadata)
+        dg_connection.on(LiveTranscriptionEvents.SpeechStarted, self.on_speech_started)
+        dg_connection.on(LiveTranscriptionEvents.UtteranceEnd, self.on_utterance_end)
+        dg_connection.on(LiveTranscriptionEvents.Close, self.on_close)
+        dg_connection.on(LiveTranscriptionEvents.Error, self.on_error)
+
+        options = LiveOptions(
+            model="nova-2",
+            punctuate=True,
+            language="en-IN",
+            encoding="linear16",
+            channels=1,
+            sample_rate=16000,
+            endpointing=400, #300, Time in milliseconds of silence to wait for before finalizing speech
+            smart_format=True,
+            numerals=True,
+        )
+
+        await dg_connection.start(options)
+
+        # Open a microphone stream on the default input device
+        microphone = Microphone(dg_connection.send)
+        microphone.start()
+
+        task = asyncio.create_task(self.process_sentence_queue())
+
+        while microphone.is_active():
+            await asyncio.sleep(0.1)  # adjust the sleep time as needed
+
+        # Wait for the microphone to close
+        microphone.finish()
+
+        # Indicate that we've finished
+        await dg_connection.finish()
+
+        task.cancel()
+
+async def main():
     client = AsyncGroq(api_key = os.getenv('GROQ_API_KEY'))
     
     # system prompts
@@ -332,318 +362,15 @@ async def STT():
         {"role": "assistant", "content": assistant_response},
     ]
 
-    loop = asyncio.get_event_loop()
+    sentence_queue = Queue()
+
+    ai = ConversationManager(client, conversation_history, sentence_queue)
 
     try:
-        
-        # example of setting up a client config. logging values: WARNING, VERBOSE, DEBUG, SPAM
-        config = DeepgramClientOptions(options={"keepalive": "true"})
-        deepgram: DeepgramClient = DeepgramClient("", config)
-
-        dg_connection = deepgram.listen.asynclive.v("1")
-        print ("Listening...")
-
-        # Define an asynchronous queue to communicate between on_message and the main loop
-        sentence_queue = Queue()
-
-        async def on_message(self, result, **kwargs):
-            # nonlocal client, conversation_history
-            
-            sentence = result.channel.alternatives[0].transcript
-            
-            if not result.speech_final:
-                transcript_collector.add_part(sentence)
-            else:
-                # This is the final part of the current sentence
-                transcript_collector.add_part(sentence)
-                full_sentence = transcript_collector.get_full_transcript()
-                # Check if the full_sentence is not empty before printing
-                if len(full_sentence.strip()) > 0:
-                    full_sentence = full_sentence.strip()
-                    print(f"Guest: {full_sentence}")
-                    if "goodbye" in full_sentence.lower():
-                        raise Exception("Guest hung up")
-                    await sentence_queue.put(full_sentence)
-                    """
-                    assistant_response = await llm_tts(client, full_sentence, conversation_history)  # Call the callback with the full_sentence
-                    
-                    # update conversation history
-                    conversation_history = conversation_history + [
-                        {"role": "user", "content": full_sentence},
-                        {"role": "assistant", "content": assistant_response},
-                    ]
-                    """
-                    transcript_collector.reset()
-                    #transcription_complete.set()  # Signal to stop transcription and exit
-        
-        async def on_open(self, open, **kwargs):
-            print(f"Connection Open")
-
-        async def on_metadata(self, metadata, **kwargs):
-            print(f"Metadata: {metadata}")
-
-        async def on_speech_started(self, speech_started, **kwargs):
-            print(f"Speech Started")
-
-        async def on_utterance_end(self, utterance_end, **kwargs):
-            print(f"Utterance End")
-
-        async def on_close(self, close, **kwargs):
-            print(f"Connection Closed")
-
-        async def on_error(self, error, **kwargs):
-            print(f"Handled Error: {error}")
-
-        #async def on_unhandled(self, unhandled, **kwargs):
-        #    print(f"Unhandled Websocket Message: {unhandled}")
-
-
-        dg_connection.on(LiveTranscriptionEvents.Open, on_open)
-        dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
-        dg_connection.on(LiveTranscriptionEvents.Metadata, on_metadata)
-        dg_connection.on(LiveTranscriptionEvents.SpeechStarted, on_speech_started)
-        dg_connection.on(LiveTranscriptionEvents.UtteranceEnd, on_utterance_end)
-        dg_connection.on(LiveTranscriptionEvents.Close, on_close)
-        dg_connection.on(LiveTranscriptionEvents.Error, on_error)
-        #dg_connection.on(LiveTranscriptionEvents.Unhandled, on_unhandled)
-    
-        options = LiveOptions(
-            model="nova-2",
-            punctuate=True,
-            language="en-IN",
-            encoding="linear16",
-            channels=1,
-            sample_rate=16000,
-            endpointing=400, #300, Time in milliseconds of silence to wait for before finalizing speech
-            smart_format=True,
-            numerals=True,
-        )
-
-        await dg_connection.start(options)
-
-        # Open a microphone stream on the default input device
-        microphone = Microphone(dg_connection.send)
-        microphone.start()
-
-        #await transcription_complete.wait()  # Wait for the transcription to complete instead of looping indefinitely
-        
-        while True:
-            if not sentence_queue.empty():
-                # Retrieve the full sentence from the queue
-                user_query = await sentence_queue.get()
-                # Pass the full sentence to llm_tts
-                assistant_response = await llm_tts(client, user_query, conversation_history)
-                # update conversation history
-                conversation_history = conversation_history + [
-                    {"role": "user", "content": user_query},
-                    {"role": "assistant", "content": assistant_response},
-                ]            
-            if not microphone.is_active():
-                break
-            await asyncio.sleep(0)
-        
-
-        # Wait for the microphone to close
-        microphone.finish()
-
-
-        # Indicate that we've finished
-        await dg_connection.finish()
-
-
+        loop = asyncio.get_event_loop()
+        await ai.stt()
     except Exception as e:
         print(f"Could not open socket: {e}")
-        return
-    loop.stop()
-
-"""
-class ConversationManager:
-    
-    def __init__(self):
-        self.transcription_response = ""
-        #self.client = AsyncGroq(api_key = os.getenv('GROQ_API_KEY'))
-    
-    async def main(self):
-        client = AsyncGroq(api_key = os.getenv('GROQ_API_KEY'))
-        
-        # system prompts
-        introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja."
-        task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
-        property_details = "The Beachview hotel is a 5-star property in Mumbai and commands a regal view of the Arabian Sea and the famous Juhu beach. It is located just 30 mins from Mumbai Airport, the travel is also arranged by the concierge. Amenities include Swimming pool, Gym, Spa, Beachfront, Cafe, Business Lounge, Banquet hall, Garden, etc. Prices quoted include breakfast and access to swimming pool, gym, beachfront, garden. Other amenities to be charged as per requirements. If the user asks for prices without breakfast, you can deduct rupees 1000 from the price quoted per night. Also, inclusion of buffet wil cost rupees 1000 extra per person for each lunch and dinner. Room types along with the details is as follows = '1. Superior room = 'area 260 square feet, city view, perfect for business and leisure travellers on the go, priced at rupees 9500 per night, inventory of 150 rooms. 2. Premier room = 'area 260 square feet, ocean view, offering stunning views of the Arabian Sea, priced at rupees 10500 per night, inventory of 100 rooms. 3. Executive room = 'area 350 square feet, city view, large studio rooms, priced at rupees 12500 per night, inventory of 100 rooms. 4. Deluxe room = 'area 350 square feet, ocean view, large studio rooms offering stunning views of the Arabian Sea, priced at rupees 18000 per night, inventory of 50 rooms. 5 = 'Luxury suite = 'area 500 square feet, ocean view, consisting of a living room and a separate bedroom, priced at rupees 25000 per night, inventory of 10 rooms."
-        conversation_style = "Communicate concisely and conversationally. Aim for responses in short, clear prose, ideally under 20 words. Always maintain a professional stance."
-        language = "Speak like a human as possible -- use everyday language and keep it human-like. Avoid using big and complex words."
-        customer_engagement = "Lead the conversation and do not be passive. Most times, engage users by ending with a question. Advise customer on what's best for them."
-        transcript_reading = "Don't repeat what's in the transcript. Rephrase if you have to reiterate a point. Use varied sentence structures and vocabulary to ensure each response is unique and personalized."
-        ASR_errrors = "This is a real-time transcript, expect there to be errors. If you can guess what the user is trying to say,  then guess and respond. When you must ask for clarification, pretend that you heard the voice and be colloquial while making use of phrases like 'didn't catch that', 'some noise', 'pardon', 'you're coming through choppy', 'static in your speech', 'voice is cutting in and out'. Do not ever mention 'transcription error', and don't repeat yourself."
-        role = "If your role cannot do something, try to steer the conversation back to the goal of the conversation and to your role. Don't repeat yourself in doing this. You should still be creative, human-like, and lively."
-        brackets = "Answer should not have any parantheses or brackets."
-
-        conversation_history = [
-            {"role": "system", "content": introduction},
-            {"role": "system", "content": task},
-            {"role": "system", "content": property_details},
-            {"role": "system", "content": conversation_style},
-            {"role": "system", "content": language},
-            {"role": "system", "content": customer_engagement},
-            {"role": "system", "content": transcript_reading},
-            {"role": "system", "content": ASR_errrors},
-            {"role": "system", "content": role},
-            {"role": "system", "content": brackets},
-        ]
-
-        intro_query = "Hi, can you please introduce yourself"
-        assistant_response = await llm_tts(client, intro_query, conversation_history)
-        
-        # update conversation history
-        conversation_history = conversation_history + [
-            {"role": "user", "content": intro_query},
-            {"role": "assistant", "content": assistant_response},
-        ]
-        
-        try:
-            # example of setting up a client config. logging values: WARNING, VERBOSE, DEBUG, SPAM
-            config = DeepgramClientOptions(options={"keepalive": "true"})
-            deepgram: DeepgramClient = DeepgramClient("", config)
-
-            dg_connection = deepgram.listen.asynclive.v("1")
-            print ("Listening...")
-
-            # Define an asynchronous queue to communicate between on_message and the main loop
-            sentence_queue = Queue()
-
-            async def on_message(self, result, **kwargs):
-                sentence = result.channel.alternatives[0].transcript
-                
-                if not result.speech_final:
-                    transcript_collector.add_part(sentence)
-                else:
-                    # This is the final part of the current sentence
-                    transcript_collector.add_part(sentence)
-                    full_sentence = transcript_collector.get_full_transcript()
-                    # Check if the full_sentence is not empty before printing
-                    if len(full_sentence.strip()) > 0:
-                        full_sentence = full_sentence.strip()
-                        print(f"Guest: {full_sentence}")
-                        if "goodbye" in full_sentence.lower():
-                            raise Exception("Guest hung up")
-                        await sentence_queue.put(full_sentence)
-                        transcript_collector.reset()
-                        
-                        #asyncio.create_task(llm_tts(client, full_sentence, conversation_history))  # Call the callback with the full_sentence
-                        #transcript_collector.reset()
-                        #transcription_complete.set()  # Signal to stop transcription and exit
-            
-
-            options = LiveOptions(
-                model="nova-2",
-                punctuate=True,
-                language="en-IN",
-                encoding="linear16",
-                channels=1,
-                sample_rate=16000,
-                endpointing=400, #300, Time in milliseconds of silence to wait for before finalizing speech
-                smart_format=True,
-                numerals=True,
-            )
-
-            await dg_connection.start(options)
-
-            #on_message_gen = on_message()
-            #async for full_sentence in on_message_gen:
-            #    await llm_tts(client, full_sentence, conversation_history)
-
-            # Open a microphone stream on the default input device
-            microphone = Microphone(dg_connection.send)
-            microphone.start()
-
-            #await transcription_complete.wait()  # Wait for the transcription to complete instead of looping indefinitely
-            
-            while True:
-                if not sentence_queue.empty():
-                    # Retrieve the full sentence from the queue
-                    user_query = await sentence_queue.get()
-                    # Pass the full sentence to llm_tts
-                    assistant_response = await llm_tts(client, user_query, conversation_history)
-                    # update conversation history
-                    conversation_history = conversation_history + [
-                        {"role": "user", "content": user_query},
-                        {"role": "assistant", "content": assistant_response},
-                    ]
-                if not microphone.is_active():
-                    break
-                await asyncio.sleep(0)  # Yield control to the event loop
-            
-
-            # Wait for the microphone to close
-            microphone.finish()
-
-
-            # Indicate that we've finished
-            await dg_connection.finish()
-
-        except Exception as e:
-            print(f"Could not open socket: {e}")
-            return
-
-    
-    async def main_old(self):
-        # system prompts
-        introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja."
-        task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
-        property_details = "The Beachview hotel is a 5-star property in Mumbai and commands a regal view of the Arabian Sea and the famous Juhu beach. It is located just 30 mins from Mumbai Airport, the travel is also arranged by the concierge. Amenities include Swimming pool, Gym, Spa, Beachfront, Cafe, Business Lounge, Banquet hall, Garden, etc. Prices quoted include breakfast and access to swimming pool, gym, beachfront, garden. Other amenities to be charged as per requirements. If the user asks for prices without breakfast, you can deduct rupees 1000 from the price quoted per night. Also, inclusion of buffet wil cost rupees 1000 extra per person for each lunch and dinner. Room types along with the details is as follows = '1. Superior room = 'area 260 square feet, city view, perfect for business and leisure travellers on the go, priced at rupees 9500 per night, inventory of 150 rooms. 2. Premier room = 'area 260 square feet, ocean view, offering stunning views of the Arabian Sea, priced at rupees 10500 per night, inventory of 100 rooms. 3. Executive room = 'area 350 square feet, city view, large studio rooms, priced at rupees 12500 per night, inventory of 100 rooms. 4. Deluxe room = 'area 350 square feet, ocean view, large studio rooms offering stunning views of the Arabian Sea, priced at rupees 18000 per night, inventory of 50 rooms. 5 = 'Luxury suite = 'area 500 square feet, ocean view, consisting of a living room and a separate bedroom, priced at rupees 25000 per night, inventory of 10 rooms."
-        conversation_style = "Communicate concisely and conversationally. Aim for responses in short, clear prose, ideally under 20 words. Always maintain a professional stance."
-        language = "Speak like a human as possible -- use everyday language and keep it human-like. Avoid using big and complex words."
-        customer_engagement = "Lead the conversation and do not be passive. Most times, engage users by ending with a question. Advise customer on what's best for them."
-        transcript_reading = "Don't repeat what's in the transcript. Rephrase if you have to reiterate a point. Use varied sentence structures and vocabulary to ensure each response is unique and personalized."
-        ASR_errrors = "This is a real-time transcript, expect there to be errors. If you can guess what the user is trying to say,  then guess and respond. When you must ask for clarification, pretend that you heard the voice and be colloquial while making use of phrases like 'didn't catch that', 'some noise', 'pardon', 'you're coming through choppy', 'static in your speech', 'voice is cutting in and out'. Do not ever mention 'transcription error', and don't repeat yourself."
-        role = "If your role cannot do something, try to steer the conversation back to the goal of the conversation and to your role. Don't repeat yourself in doing this. You should still be creative, human-like, and lively."
-        brackets = "Answer should not have any parantheses or brackets."
-
-        conversation_history = [
-            {"role": "system", "content": introduction},
-            {"role": "system", "content": task},
-            {"role": "system", "content": property_details},
-            {"role": "system", "content": conversation_style},
-            {"role": "system", "content": language},
-            {"role": "system", "content": customer_engagement},
-            {"role": "system", "content": transcript_reading},
-            {"role": "system", "content": ASR_errrors},
-            {"role": "system", "content": role},
-            {"role": "system", "content": brackets},
-        ]
-
-        intro_query = "Hi, can you please introduce yourself"
-        assistant_response = await llm_tts(self.client, intro_query, conversation_history)
-        
-        # update conversation history
-        conversation_history = conversation_history + [
-            {"role": "user", "content": intro_query},
-            {"role": "assistant", "content": assistant_response},
-        ]
-        
-        
-        def handle_full_sentence(full_sentence):
-            self.transcription_response = full_sentence
-
-        while True:
-            await get_transcript(handle_full_sentence)
-            # Check for "goodbye" to exit the loop
-            if "goodbye" in self.transcription_response.lower():
-                break
-            
-            assistant_response = await llm_tts(self.client, self.transcription_response, conversation_history)
-
-            # update conversation history
-            conversation_history = conversation_history + [
-                {"role": "user", "content": self.transcription_response},
-                {"role": "assistant", "content": assistant_response},
-            ]
-            
-            # Reset transcription_response for the next loop iteration
-            self.transcription_response = ""
-"""
 
 if __name__ == "__main__":
-    #manager = ConversationManager()
-    #asyncio.run(manager.main())
-    asyncio.run(STT())
+    asyncio.run(main())
