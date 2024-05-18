@@ -378,4 +378,7 @@ async def main():
 if __name__ == "__main__":
     if platform.system() == 'Windows':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # Explicitly setting the default event loop policy for Linux
+    #if platform.system() == 'Linux':
+    #    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
     asyncio.run(main())
