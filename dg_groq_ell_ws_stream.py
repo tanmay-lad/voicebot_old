@@ -332,8 +332,9 @@ async def STT():
         {"role": "assistant", "content": assistant_response},
     ]
 
+    loop = asyncio.get_event_loop()
+
     try:
-        loop = asyncio.get_event_loop()
         
         # example of setting up a client config. logging values: WARNING, VERBOSE, DEBUG, SPAM
         config = DeepgramClientOptions(options={"keepalive": "true"})
@@ -449,13 +450,13 @@ async def STT():
         # Indicate that we've finished
         await dg_connection.finish()
 
-        loop.stop()
 
     except Exception as e:
         print(f"Could not open socket: {e}")
         return
+    loop.stop()
 
-
+"""
 class ConversationManager:
     
     def __init__(self):
@@ -529,25 +530,6 @@ class ConversationManager:
                         transcript_collector.reset()
                         
                         #asyncio.create_task(llm_tts(client, full_sentence, conversation_history))  # Call the callback with the full_sentence
-                        """    
-                        # update conversation history
-                        conversation_history = conversation_history + [
-                            {"role": "user", "content": full_sentence},
-                            {"role": "assistant", "content": assistant_response},
-                        ]
-                        """
-                        """
-                        try:
-                            assistant_response_task = asyncio.create_task(llm_tts(client, full_sentence, conversation_history))  # Call the callback with the full_sentence
-                            assistant_response = await assistant_response_task
-                            # update conversation history
-                            conversation_history = conversation_history + [
-                                {"role": "user", "content": full_sentence},
-                                {"role": "assistant", "content": assistant_response},
-                            ]
-                        except Exception as e:
-                            print(f"Error in llm_tts: {e}")
-                        """
                         #transcript_collector.reset()
                         #transcription_complete.set()  # Signal to stop transcription and exit
             
@@ -639,11 +621,7 @@ class ConversationManager:
             {"role": "assistant", "content": assistant_response},
         ]
         
-        """
-        tts = TextToSpeech()
-        async for sentence in llm_tts(self.client, intro_query, conversation_history):
-            await tts.speak(sentence)
-        """
+        
         def handle_full_sentence(full_sentence):
             self.transcription_response = full_sentence
 
@@ -660,16 +638,11 @@ class ConversationManager:
                 {"role": "user", "content": self.transcription_response},
                 {"role": "assistant", "content": assistant_response},
             ]
-
-            """
-            async for sentence in llm_tts(self.client, self.transcription_response, conversation_history):
-                await tts.speak(sentence)
-                assistant_response += sentence
-            """
             
             # Reset transcription_response for the next loop iteration
             self.transcription_response = ""
-            
+"""
+
 if __name__ == "__main__":
     #manager = ConversationManager()
     #asyncio.run(manager.main())
