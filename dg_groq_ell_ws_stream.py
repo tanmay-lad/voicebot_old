@@ -10,6 +10,7 @@ import requests
 import time
 import subprocess
 import shutil
+import platform
 
 from elevenlabs.client import ElevenLabs
 from elevenlabs import stream
@@ -234,9 +235,6 @@ class ConversationManager:
         self.sentence_queue = sentence_queue
 
     async def on_message(self, event, result, **kwargs):
-        #print("Received message with result:", result)
-        #print("Additional keyword arguments:", kwargs)
-        # nonlocal client, conversation_history
         sentence = result.channel.alternatives[0].transcript
         
         if not result.speech_final:
@@ -277,6 +275,11 @@ class ConversationManager:
             if not self.sentence_queue.empty():
                 user_query = await self.sentence_queue.get()
                 assistant_response = await llm_tts(self.client, user_query, self.conversation_history)
+                # update conversation history
+                self.conversation_history = self.conversation_history + [
+                    {"role": "user", "content": user_query},
+                    {"role": "assistant", "content": assistant_response},
+                ]
             await asyncio.sleep(0.1)  # adjust the sleep time as needed    
     
     async def stt(self):
@@ -367,10 +370,12 @@ async def main():
     ai = ConversationManager(client, conversation_history, sentence_queue)
 
     try:
-        loop = asyncio.get_event_loop()
+        #loop = asyncio.get_event_loop()
         await ai.stt()
     except Exception as e:
         print(f"Could not open socket: {e}")
 
 if __name__ == "__main__":
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())
