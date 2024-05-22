@@ -10,7 +10,7 @@ from deepgram import (
 load_dotenv()
 
 # Path to the audio file
-AUDIO_FILE = "call_recording.mp3"
+AUDIO_FILE = "call_recording_1.mp3"
 
 API_KEY = os.getenv("DEEPGRAM_API_KEY")
 

@@ -50,7 +50,7 @@ def main() -> None:
         {"role": "system", "content": brackets},
     ]
 
-    with open('call_recording.json', 'r') as file:
+    with open('call_recording_2.json', 'r') as file:
         conversation = json.load(file)
 
     conversation_history.extend(conversation)
