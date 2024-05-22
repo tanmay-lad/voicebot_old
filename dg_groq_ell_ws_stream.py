@@ -68,6 +68,7 @@ class TextToSpeech:
 
             start_time = None
             first_byte_time = None
+            
             async def listen():
                 """Listen to the websocket for audio data and stream it."""
                 nonlocal first_byte_time
@@ -87,8 +88,14 @@ class TextToSpeech:
                         print("Connection closed")
                         break
 
+            async def append_audio_chunks():
+                audio_chunks = []
+                async for audio_chunk in listen():
+                    audio_chunks.append(audio_chunk)
+                return audio_chunks
+
             #end_time = time.time()  # Record the time before sending the request
-            listen_task = asyncio.create_task(stream(listen()))
+            listen_task = asyncio.create_task(append_audio_chunks())
 
             async for text in text_chunker(text_iterator):
                 if start_time is None:
