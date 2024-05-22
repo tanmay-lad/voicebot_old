@@ -342,6 +342,7 @@ class ConversationManager:
 async def main():
     client = AsyncGroq(api_key = os.getenv('GROQ_API_KEY'))
     
+    """
     # system prompts
     introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja."
     task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
@@ -366,6 +367,18 @@ async def main():
         {"role": "system", "content": role},
         {"role": "system", "content": brackets},
     ]
+    """
+
+    conversation_history = []
+
+    with open('sys_prompts_hotel_eng.txt', 'r') as f:
+        for line in f:
+            parts = line.strip().split('=')
+            if len(parts) == 2:
+                key, value = parts
+                conversation_history = conversation_history + [
+                    {"role": "user", "content": value},
+                ]
 
     intro_query = "Hi, can you please introduce yourself"
     assistant_response = await llm_tts(client, intro_query, conversation_history)
