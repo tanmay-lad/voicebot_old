@@ -117,7 +117,8 @@ class TextToSpeech:
             }
             await websocket.send(json.dumps(eos_message))
 
-            await listen_task
+            audio_stream = await listen_task
+            stream(audio_stream)
             
             #end_time = time.time()  # Record the time before sending the request
             #ttts = int((end_time - start_time) * 1000)  # Calculate the time for tts to complete

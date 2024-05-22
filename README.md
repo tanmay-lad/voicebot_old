@@ -2,7 +2,7 @@
 
 This is a project showing a bot that uses Text-To-Speech, Speech-To-Text, and a language model to have a conversation with a user.
 
-This demo is set up to use [Deepgram](www.deepgram.com) for STT, [Groq](https://groq.com/) for LLM and [ElevanLabs](https://elevenlabs.io/) for TTS.
+This demo is set up to use [Deepgram](www.deepgram.com) for STT, [Groq](https://groq.com/) for LLM and [ElevenLabs](https://elevenlabs.io/) for TTS.
 
 The files in `building_blocks` are the isolated components if you'd like to inspect them. Some old code files are archived in `old_files` folder.
 
