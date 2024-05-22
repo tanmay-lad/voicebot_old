@@ -22,9 +22,10 @@ def generate_chat_responses(stream):
             print(delta.content, end="")
             yield delta.content
 
-def main() -> None:
+def llm(query):
     client = Groq(api_key = os.getenv('GROQ_API_KEY'))
-
+    
+    _="""
     # system prompts
     introduction = "As a hotel reservations manager at the Beachview hotel, you are tasked to speak with customers seeking room bookings at the hotel. Your name is Pooja."
     task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
@@ -49,13 +50,27 @@ def main() -> None:
         {"role": "system", "content": role},
         {"role": "system", "content": brackets},
     ]
+    """
+
+    conversation_history = []
+
+    _="""
+    with open('sys_prompts_hotel_eng.txt', 'r') as f:
+        for line in f:
+            parts = line.strip().split('=')
+            if len(parts) == 2:
+                key, value = parts
+                conversation_history = conversation_history + [
+                    {"role": "user", "content": value},
+                ]
+    """
 
     with open('call_recording_2.json', 'r') as file:
         conversation = json.load(file)
 
     conversation_history.extend(conversation)
 
-    query = "I want to make use of call center analytics on this conversation. Please perform Customer Sentiment Analysis, Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Also give rating out of 10 for Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Highlight specific instances if applicable."
+    #query = "I want to make use of call center analytics on this conversation. Please perform Customer Sentiment Analysis, Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Also give rating out of 10 for Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Highlight specific instances if applicable."
 
     start_time = time.time()
 
@@ -101,9 +116,26 @@ def main() -> None:
     elapsed_time = int((end_time - start_time) * 1000)
     print(f"LLM ({elapsed_time}ms): ")
 
-    button_clicked = st.button("Run call analytics :speech_balloon:", type="primary")
+    return stream
 
-    if button_clicked:
+    
+def main():
+    query_analytics = "I want to make use of call center analytics on this conversation. Please perform Customer Sentiment Analysis, Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Also give rating out of 10 for Agent Performance Analysis, Call Flow Optimization, and Quality Assurance. Highlight specific instances if applicable. Instead of currency symbols, write shortforms and numbers."
+    query_summary = "I am transferring this call to supervisor for payment options related discussion. Please write a conversation summary with bullet points wherever applicable, for supervisor to get an overall understanding of conversation so far. Instead of currency symbols, write shortforms and numbers."
+
+    call_analytics = st.button("Run call analytics :speech_balloon:", type="primary")
+    call_summary = st.button("Get call summary :speech_balloon:", type="primary")
+
+    if call_analytics:
+        query = query_analytics
+        stream = llm(query)
+        with st.chat_message("assistant", avatar="🤖"):
+            chat_responses_generator = generate_chat_responses(stream)
+            st.write_stream(chat_responses_generator)
+    
+    if call_summary:
+        query = query_summary
+        stream = llm(query)
         with st.chat_message("assistant", avatar="🤖"):
             chat_responses_generator = generate_chat_responses(stream)
             st.write_stream(chat_responses_generator)
