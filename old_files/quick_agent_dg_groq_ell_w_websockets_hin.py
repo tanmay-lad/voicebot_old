@@ -217,7 +217,7 @@ class ConversationManager:
             self.transcription_response = full_sentence
 
         # Start with voicebot introduction
-        llm_response = self.llm.process("Please introduce yourself")
+        llm_response = self.llm.process("Khudka parichay dijiye") # "Please introduce yourself"
 
         tts = TextToSpeech()
         await tts.speak(llm_response)

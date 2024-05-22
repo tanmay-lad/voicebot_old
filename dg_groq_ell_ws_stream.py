@@ -52,7 +52,7 @@ class TextToSpeech:
 
     elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
     model = "eleven_turbo_v2"  # Example model name, change as needed
-    voice_id = '21m00Tcm4TlvDq8ikWAM'  # Change this as required
+    voice_id = '2zRM7PkgwBPiau2jvVXc'  # [HIN: 1qEiC6qsybMkmnNdVMbK, HIN: 50YSQEDPA2vlOxhCseP4, EN-IN: ftDdhfYtmfGP0tFlBYA1, EN-IN: 2zRM7PkgwBPiau2jvVXc, EN-US: 21m00Tcm4TlvDq8ikWAM]
 
     async def speak(self, text_iterator):
         start_time = time.time()  # Record the time before sending the request
@@ -248,6 +248,9 @@ class ConversationManager:
                 full_sentence = full_sentence.strip()
                 print(f"Guest: {full_sentence}")
                 if "goodbye" in full_sentence.lower():
+                    #call_analytics.call_analytics(self.conversation_history)
+                    with open('call_recording.json', 'w') as file:
+                        json.dump(self.conversation_history, file, indent=4)
                     raise Exception("Guest hung up")
                 await self.sentence_queue.put(full_sentence)
                 transcript_collector.reset()    
@@ -300,7 +303,7 @@ class ConversationManager:
         options = LiveOptions(
             model="nova-2",
             punctuate=True,
-            language="en-IN",
+            language="en-IN", #hi, hi-Latn, en-IN
             encoding="linear16",
             channels=1,
             sample_rate=16000,
@@ -336,7 +339,7 @@ async def main():
     task = "Whenever the user asks for room availability, ask them for the basic details such as dates, number of guests, room preferences, breakfast inclusion, and any special requests - do not ask everything in a single question."
     property_details = "The Beachview hotel is a 5-star property in Mumbai and commands a regal view of the Arabian Sea and the famous Juhu beach. It is located just 30 mins from Mumbai Airport, the travel is also arranged by the concierge. Amenities include Swimming pool, Gym, Spa, Beachfront, Cafe, Business Lounge, Banquet hall, Garden, etc. Prices quoted include breakfast and access to swimming pool, gym, beachfront, garden. Other amenities to be charged as per requirements. If the user asks for prices without breakfast, you can deduct rupees 1000 from the price quoted per night. Also, inclusion of buffet wil cost rupees 1000 extra per person for each lunch and dinner. Room types along with the details is as follows = '1. Superior room = 'area 260 square feet, city view, perfect for business and leisure travellers on the go, priced at rupees 9500 per night, inventory of 150 rooms. 2. Premier room = 'area 260 square feet, ocean view, offering stunning views of the Arabian Sea, priced at rupees 10500 per night, inventory of 100 rooms. 3. Executive room = 'area 350 square feet, city view, large studio rooms, priced at rupees 12500 per night, inventory of 100 rooms. 4. Deluxe room = 'area 350 square feet, ocean view, large studio rooms offering stunning views of the Arabian Sea, priced at rupees 18000 per night, inventory of 50 rooms. 5 = 'Luxury suite = 'area 500 square feet, ocean view, consisting of a living room and a separate bedroom, priced at rupees 25000 per night, inventory of 10 rooms."
     conversation_style = "Communicate concisely and conversationally. Aim for responses in short, clear prose, ideally under 20 words. Always maintain a professional stance."
-    language = "Speak like a human as possible -- use everyday language and keep it human-like. Avoid using big and complex words."
+    language = "Speak like a human as possible, use everyday language and avoid using big and complex words."
     customer_engagement = "Lead the conversation and do not be passive. Most times, engage users by ending with a question. Advise customer on what's best for them."
     transcript_reading = "Don't repeat what's in the transcript. Rephrase if you have to reiterate a point. Use varied sentence structures and vocabulary to ensure each response is unique and personalized."
     ASR_errrors = "This is a real-time transcript, expect there to be errors. If you can guess what the user is trying to say,  then guess and respond. When you must ask for clarification, pretend that you heard the voice and be colloquial while making use of phrases like 'didn't catch that', 'some noise', 'pardon', 'you're coming through choppy', 'static in your speech', 'voice is cutting in and out'. Do not ever mention 'transcription error', and don't repeat yourself."

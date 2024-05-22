@@ -169,6 +169,7 @@ async def get_transcript(callback):
             sample_rate=16000,
             endpointing=500, #300, Time in milliseconds of silence to wait for before finalizing speech
             smart_format=True,
+            numerals=True,
         )
 
         await dg_connection.start(options)

@@ -62,7 +62,9 @@ async def get_transcript():
             encoding="linear16",
             channels=1,
             sample_rate=16000,
-            endpointing=True
+            endpointing=True,
+            smart_format=True,
+            numerals=True,
         )
 
         await dg_connection.start(options)
