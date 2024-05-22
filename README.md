@@ -24,9 +24,9 @@ The files in `building_blocks` are the isolated components if you'd like to insp
 - `llm_tts()` will generate a response stream in chunks -> `text_iterator()` yields these chunks as output -> `TextToSpeech().speak()` is called to give audio output -> audio output is generated in chunks while ensuring flow using `text_chunker()` function which identifies splitters in the stream and stores in buffers
 
 **Call analytics:**
-- Refer to call_recording files and analytics codes
-- Deepgram takes audio files as input; need to assess intent and sentiment analysis output
-- LLM takes json file as input and runs analysis based on prompt 
+- Refer to `call_recording` files and analytics codes
+- `analytics_dg`: Deepgram takes audio files as input; need to assess intent and sentiment analysis output
+- `analytics_llm`: LLM takes json file as input and runs analysis based on prompt 
 
 ```
 Run command: python3 dg_groq_ell_ws_stream.py
